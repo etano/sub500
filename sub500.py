@@ -1,30 +1,28 @@
 import string
 from random import choice, randint
 import tweepy, time
-import gdata.youtube
-import gdata.youtube.service
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from oauth2client.tools import argparser
 
-yt_service = gdata.youtube.service.YouTubeService()
-
-# Turn on HTTPS/SSL access.
-# Note: SSL is not available at this time for uploads.
-yt_service.ssl = True
 f = open('ytAuth.txt','r')
 lines = [x.rstrip() for x in f.readlines()]
-yt_service.developer_key = lines[0]
-yt_service.client_id = lines[1]
+DEVELOPER_KEY = lines[0]
+CLIENT_ID = lines[1]
+YOUTUBE_API_SERVICE_NAME = "youtube"
+YOUTUBE_API_VERSION = "v3"
 
-def FilterFeed(feed):
+def FilterFeed(items):
   vids = []
-  for entry in feed.entry:
-    if entry.statistics != None:
-      view_count = int(entry.statistics.view_count)
+  for entry in items:
+    if entry['statistics'] != None:
+      view_count = int(entry['statistics']['viewCount'])
     else:
       view_count = 0
     if view_count < 500: # Sub 500
-      id = entry.id.text.split('/')[-1]
+      id = entry['id']
       url = 'http://www.youtube.com/watch?v='+id
-      title = entry.media.title.text
+      title = entry['snippet']['title']
       vids.append([id,url,title,view_count])
   if vids != []:
     return choice(vids)
@@ -32,12 +30,28 @@ def FilterFeed(feed):
     return None
 
 def SearchYoutube(search_terms):
-  query = gdata.youtube.service.YouTubeVideoQuery()
-  query.vq = search_terms.encode('ascii','ignore')
-  query.max_results = 50
-  query.racy = 'include'
-  feed = yt_service.YouTubeQuery(query)
-  return FilterFeed(feed)
+  youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
+
+  search_response = youtube.search().list(
+    q=search_terms.encode('ascii','ignore'),
+    part="id",
+    maxResults=50,
+    order="date",
+    safeSearch="none",
+    type="video"
+  ).execute()
+
+  search_videos = []
+  for search_result in search_response.get("items", []):
+    search_videos.append(search_result["id"]["videoId"])
+  video_ids = ",".join(search_videos)
+
+  video_response = youtube.videos().list(
+    id=video_ids,
+    part='snippet, statistics'
+  ).execute()
+
+  return FilterFeed(video_response.get("items", []))
 
 def GetSub500():
   # Get words
