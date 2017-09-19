@@ -77,9 +77,6 @@ auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
 auth.set_access_token(ACCESS_KEY, ACCESS_SECRET)
 api = tweepy.API(auth)
 
-Going = True
-while Going:
-    [id,url,title,view_count] = GetSub500()
-    print id, url, title, view_count
-    api.update_status('('+str(view_count)+') '+title+': '+url)
-    time.sleep(10800) # Sleep for 3 hours
+[id,url,title,view_count] = GetSub500()
+print id, url, title, view_count
+api.update_status('('+str(view_count)+') '+title+': '+url)
