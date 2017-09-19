@@ -1,11 +1,12 @@
-import string
+import os, string, time, tweepy
 from random import choice, randint
-import tweepy, time
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.tools import argparser
 
-f = open('ytAuth.txt','r')
+dir = os.path.dirname(os.path.abspath(__file__))
+
+f = open(dir+'/ytAuth.txt','r')
 lines = [x.rstrip() for x in f.readlines()]
 DEVELOPER_KEY = lines[0]
 CLIENT_ID = lines[1]
@@ -55,7 +56,7 @@ def SearchYoutube(search_terms):
 
 def GetSub500():
   # Get words
-  f = open('words.txt','r')
+  f = open(dir+'/words.txt','r')
   words = []
   for line in f:
     word = line.rstrip().decode('utf-8')
@@ -67,7 +68,7 @@ def GetSub500():
     vid = SearchYoutube(word)
   return vid
 
-f = open('twitterAuth.txt','r')
+f = open(dir+'/twitterAuth.txt','r')
 lines = [x.rstrip() for x in f.readlines()]
 CONSUMER_KEY = lines[0] # To get this stuff, sign in at https://dev.twitter.com/ and Create a New Application
 CONSUMER_SECRET = lines[1] # Make sure access level is Read And Write in the Settings tab
@@ -78,5 +79,5 @@ auth.set_access_token(ACCESS_KEY, ACCESS_SECRET)
 api = tweepy.API(auth)
 
 [id,url,title,view_count] = GetSub500()
-print id, url, title, view_count
 api.update_status('('+str(view_count)+') '+title+': '+url)
+print id, url, title, view_count
