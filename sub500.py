@@ -1,7 +1,5 @@
-import os
-import string
-import time
-from random import choice, randint
+import sys
+from random import choice
 
 import tweepy
 from googleapiclient.discovery import build
@@ -9,39 +7,23 @@ from googleapiclient.errors import HttpError
 from oauth2client.tools import argparser
 
 
-dir = os.path.dirname(os.path.abspath(__file__))
-
-f = open(dir + "/ytAuth.txt", "r")
-lines = [x.rstrip() for x in f.readlines()]
-DEVELOPER_KEY = lines[0]
-CLIENT_ID = lines[1]
-YOUTUBE_API_SERVICE_NAME = "youtube"
-YOUTUBE_API_VERSION = "v3"
-
-
-def FilterFeed(items):
+def filter_feed(items):
     vids = []
     for entry in items:
+        view_count = 0
         if entry["statistics"] is not None:
             view_count = int(entry["statistics"]["viewCount"])
-        else:
-            view_count = 0
         if view_count < 500:  # Sub 500
             id = entry["id"]
-            url = "http://www.youtube.com/watch?v=" + id
+            url = f"http://www.youtube.com/watch?v={id}"
             title = entry["snippet"]["title"]
             vids.append([id, url, title, view_count])
-    if vids != []:
-        return choice(vids)
-    else:
-        return None
+    return choice(vids) if vids else None
 
 
-def SearchYoutube(search_terms):
-    youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
-
+def search_youtube(youtube_client, search_terms):
     search_response = (
-        youtube.search()
+        youtube_client.search()
         .list(
             q=search_terms.encode("ascii", "ignore"),
             part="id",
@@ -52,42 +34,37 @@ def SearchYoutube(search_terms):
         )
         .execute()
     )
-
-    search_videos = []
-    for search_result in search_response.get("items", []):
-        search_videos.append(search_result["id"]["videoId"])
+    search_videos = [result["id"]["videoId"] for result in search_response.get("items", [])]
     video_ids = ",".join(search_videos)
-
-    video_response = youtube.videos().list(id=video_ids, part="snippet, statistics").execute()
-
-    return FilterFeed(video_response.get("items", []))
+    video_response = youtube_client.videos().list(id=video_ids, part="snippet, statistics").execute()
+    return filter_feed(video_response.get("items", []))
 
 
-def GetSub500():
-    # Get words
-    f = open(dir + "/words.txt", "r")
-    words = []
-    for line in f:
-        word = line.rstrip().decode("utf-8")
-        words.append(word)
-
+def get_sub500(youtube_client):
+    with open("words.txt", "r") as f:
+        words = [line.rstrip() for line in f]
     vid = None
     while vid is None:
         word = choice(words)
-        vid = SearchYoutube(word)
+        vid = search_youtube(youtube_client, word)
     return vid
 
 
-f = open(dir + "/twitterAuth.txt", "r")
-lines = [x.rstrip() for x in f.readlines()]
-CONSUMER_KEY = lines[0]  # To get this stuff, sign in at https://dev.twitter.com/ and Create a New Application
-CONSUMER_SECRET = lines[1]  # Make sure access level is Read And Write in the Settings tab
-ACCESS_KEY = lines[2]  # Create a new Access Token
-ACCESS_SECRET = lines[3]  # Shhhhhhhhh....
-auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-auth.set_access_token(ACCESS_KEY, ACCESS_SECRET)
-api = tweepy.API(auth)
+def main():
+    google_developer_key = sys.argv[1]
+    youtube_client = build("youtube", "v3", developerKey=google_developer_key)
+    [id, url, title, view_count] = get_sub500(youtube_client)
+    print(id, url, title, view_count)
 
-[id, url, title, view_count] = GetSub500()
-api.update_status("(" + str(view_count) + ") " + title + ": " + url)
-print(id, url, title, view_count)
+    twitter_consumer_key = sys.argv[2]
+    twitter_consumer_secret = sys.argv[3]
+    twitter_access_key = sys.argv[4]
+    twitter_access_secret = sys.argv[5]
+    twitter_auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
+    twitter_auth.set_access_token(twitter_access_key, twitter_access_secret)
+    twitter_client = tweepy.API(twitter_auth)
+    twitter_client.update_status(f"({view_count}) {title}: {url}")
+
+
+if __name__ == "__main__":
+    main()
